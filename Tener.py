@@ -230,7 +230,7 @@ class Tener(nn.Module):#EOS_Vector == End-Of-Sentence_Vector
         self.model_dim = model_dim
         self.Embedding = Embedding
         self.encoder = encoder(model_dim , heads_Enc , num_Enc_layers)
-        self.decoder = decoder(model_dim , heads_Dec , num_Dec_layers , Embedding , EOS_Vector)
+        self.decoder = decoder(model_dim , heads_Dec , num_Dec_layers , Embedding , EOS_Vector , num_class )
         # self.optimizer = torch.optim.Adam(self.parameters(),0.05,(0.9,.999))
 
     
