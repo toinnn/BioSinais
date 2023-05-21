@@ -279,3 +279,19 @@ class Ner_Class(nn.Module):
         out_class = self.decoder(enc , enc , masked = masked_out )
         return out_class
     
+class Ner_Class_Handler(nn.Module):
+    def __init__(self,model_dim ,heads_Enc , heads_Dec ,num_Enc_layers ,num_Dec_layers  , num_Classes  ):
+        super(Ner_Class_Handler ,self).__init__()
+        self.Ner = Ner_Class(model_dim ,heads_Enc , heads_Dec ,num_Enc_layers ,num_Dec_layers  , num_Classes)
+        self.num_Classes = num_Classes
+        self.model_dim = model_dim
+
+    def forward(self , x ,Enc_mask = False ,Enc_scale = True , masked_out = True ) :
+
+        if x.shape[0]> self.num_Classes :
+            splits = x.shape[0]/self.num_Classes
+            if type(splits) == type(x.shape[0]/1) :
+                return torch.cat(( self.Ner(x[i*self.num_Classes : (i+1)*self.num_Classes ] , masked = masked_out) for i in range(0, splits )) , dim=0)
+            buffer = [ self.Ner(x[i*self.num_Classes : (i+1)*self.num_Classes] , masked = masked_out ) for i in range(0, splits )]
+            return torch.cat(buffer + [self.Ner(x[ int(splits)*self.num_Classes : ] , masked = masked_out )] , dim = 0)
+        return self.Ner(x ,Enc_mask = False ,Enc_scale = True  , masked = masked_out)
