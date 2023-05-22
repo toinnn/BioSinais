@@ -259,7 +259,7 @@ class Ner_Class(nn.Module):
         return lossValue
 
 
-    def fit(self ,batch_Input , batch_Output , maxAge , maxErro,n = 0.05 ,Betas = (0.9,.999) ,  lossFunction = nn.MSELoss() , 
+    def fit(self ,batch_Input , batch_Output , maxAge , maxErro,n = 0.05 ,Betas = (0.9,.999) ,  lossFunction = nn.CrossEntropyLoss() , 
             lossGraphNumber = 1 ):
         self.optimizer = torch.optim.Adam(self.parameters(), n ,Betas)
         lossValue = float("inf")
