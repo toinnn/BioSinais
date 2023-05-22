@@ -1,6 +1,9 @@
 import torch
 from pytorch_pretrained_bert import BertTokenizer, BertModel, BertForMaskedLM , GPT2Tokenizer
 import json
+import matplotlib.pyplot as plt
+import numpy as np
+
 
 # OPTIONAL: if you want to have more information on what's happening, activate the logger as follows
 import logging
@@ -18,3 +21,10 @@ tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')#.wordpiece_tokeni
 
 aux = json.load(open("CLS_token.json", "r"))
 print(torch.tensor( json.load(open("CLS_token.json", "r")) ))
+
+a = (np.array([1,2,3,4]) , np.array([1,2,3,4]) + 2)
+
+plt.plot( range(1 , len(a[0]) + 1 ) , a[0])
+plt.plot( range(1 , len(a[0]) + 1 ) , a[1])
+
+plt.show()

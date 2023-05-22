@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import random as rd
 from torch.autograd import Variable
 
@@ -53,11 +53,11 @@ class Ner_Class_And_Reg_Decoder(nn.Module):
 
         soft_Out = torch.cat(soft_Out ,dim = 0)
         reg__Out = torch.cat(reg__Out ,dim = 0)
-        return torch.cat( (soft_Out , reg__Out) ,dim = 1)
+        return soft_Out , reg__Out #torch.cat( (soft_Out , reg__Out) ,dim = 1)
     
     def forward(self ,Enc_values , Enc_keys , max_lengh = 100 ) :
         sequence = self.BOS
-        idx = []#Indixe dos outputs das classes 
+        classes_list = []#Indixe dos outputs das classes 
         pos_list = []# [tensor([[Begin of Entity , End of Entity]])]
         while sequence[-1] != self.EOS and sequence.shape[0]< max_lengh  :
             buffer = sequence
@@ -69,7 +69,7 @@ class Ner_Class_And_Reg_Decoder(nn.Module):
             out_class , out_pos       = torch.argmax(buffer_class).item() , buffer_reg
             # out = heapq.nlargest(1, enumerate(buffer_class ) , key = lambda y : y[1])[0]
             
-            idx.append(out_class)
+            classes_list.append(out_class)
             pos_list.append(out_pos.view(-1) )
             # idx.append(out[0])
             #buffer = F.softmax(buffer , dim = 1)
@@ -82,7 +82,7 @@ class Ner_Class_And_Reg_Decoder(nn.Module):
         
         # sequence = [self.embedding.idx2token[i] for i in idx ]
         # return sequence
-        return idx , pos_list
+        return classes_list , pos_list
 
 class Ner_Class_And_Reg(nn.Module):
     def __init__(self,model_dim ,heads_Enc , heads_Dec ,num_Enc_layers ,num_Dec_layers  , num_Classes  ):
@@ -92,13 +92,14 @@ class Ner_Class_And_Reg(nn.Module):
         self.encoder = encoder(model_dim , heads_Enc , num_Enc_layers)
         self.decoder = Ner_Class_And_Reg_Decoder(model_dim , heads_Dec , num_Dec_layers , num_Classes  )
 
-    def fit(self ,batch_Input , batch_Output , maxAge , maxErro,n = 0.05 ,Betas = (0.9,.999) ,  lossFunction = nn.CrossEntropyLoss() , 
+    def fit(self ,batch_Input , batch_Output , maxAge , maxErro,n = 0.05 ,Betas = (0.9,.999) ,
+            lossFunction_Clas = nn.CrossEntropyLoss() , lossFunction_Reg = nn.MSELoss() ,
             lossGraphNumber = 1 ):
         self.optimizer = torch.optim.Adam(self.parameters(), n ,Betas)
         lossValue = float("inf")
         Age = 0
-        lossList = []
-
+        lossList_Cla = []
+        lossList_Reg = []
         # batch_Input  = [ self.Embedding.sequence2vectors(i) for i in batch_Input  ]
         # batch_Input  = [ self.Embedding.sequence2vectors(i) for i in batch_Input  ]
         # batch_Output = [ self.Embedding.sequence2idx(i)     for i in batch_Output ]
@@ -107,31 +108,39 @@ class Ner_Class_And_Reg(nn.Module):
             
             for x,y in zip(batch_Input,batch_Output) :
                 print("y.shape[0] = {}".format(y.shape[0]))
-                if type(y) != type(torch.tensor([1])) :
+                if type(y[0]) != type(torch.tensor([1])) :
                     x = torch.from_numpy(x).float()
-                    y = torch.from_numpy(y).float()
+                    y = (torch.from_numpy(y[0]).float() , torch.from_numpy(y[1]).float())
                 # div = len(y)
                 enc = self.encoder(x , mask = False ,scale = True )
                 print('____________DECODER ___________________\n\n\n\n')
-                out = self.decoder.forward_fit(enc , enc , max_lengh = y.shape[0])
+                out_clas , out_reg = self.decoder.forward_fit(enc , enc , max_lengh = y[0].shape[0])
                 
-                # print("out.shape = " , out.shape ,"\nmult_oneHotEncode(self.model_dim, y ).shape = " , mult_oneHotEncode(len(self.Embedding.vocab), y ).shape )
-                # loss = lossFunction(out , mult_oneHotEncode(len(self.Embedding.vocab), y ))
-                loss = lossFunction(out , y )
-                lossValue += loss.item()
-                loss.backward()
+                
+                
+                loss_Cla = lossFunction_Clas(out_clas , y[0] )
+                loss_Reg = lossFunction_Reg( out_reg  , y[1] )
+                
+                lossValue_Cla += loss_Cla.item()
+                lossValue_Reg += loss_Reg.item()
+                
+                loss_Cla.backward()
+                loss_Reg.backward()
+                
                 self.optimizer.step()
                 self.optimizer.zero_grad()
             Age += 1
             # lossValue = lossValue/div
-            lossList.append(lossValue)
-        plt.plot(range(1 , Age + 1) , lossList)
+            lossList_Cla.append(lossValue_Cla)
+            lossList_Reg.append(lossValue_Reg)
+        plt.plot(range(1 , Age + 1) , lossList_Cla)
+        plt.plot(range(1 , Age + 1) , lossList_Reg)
         if lossGraphNumber != 1 :
-            plt.savefig("{}_Tener_LossInTrain_Plot.png".format(lossGraphNumber) )
-            plt.savefig("{}_Tener_LossInTrain_Plot.pdf".format(lossGraphNumber) )
+            plt.savefig("{}_Tener_Cla_&_Reg__LossInTrain_Plot.png".format(lossGraphNumber) )
+            # plt.savefig("{}_Tener_Cla_&_Reg__LossInTrain_Plot.pdf".format(lossGraphNumber) )
         else :
-            plt.savefig("Tener_LossInTrain_Plot.png")
-            plt.savefig("Tener_LossInTrain_Plot.pdf")
+            plt.savefig("Tener_Cla_&_Reg__LossInTrain_Plot.png")
+            # plt.savefig("Tener_Cla_&_Reg__LossInTrain_Plot.pdf")
         
         print("O erro final foi de {} ".format(lossValue))
 
@@ -250,7 +259,7 @@ class Ner_Class(nn.Module):
         return lossValue
 
 
-    def fit(self ,batch_Input , batch_Output , maxAge , maxErro,n = 0.05 ,Betas = (0.9,.999) ,  lossFunction = nn.CrossEntropyLoss() , 
+    def fit(self ,batch_Input , batch_Output , maxAge , maxErro,n = 0.05 ,Betas = (0.9,.999) ,  lossFunction = nn.MSELoss() , 
             lossGraphNumber = 1 ):
         self.optimizer = torch.optim.Adam(self.parameters(), n ,Betas)
         lossValue = float("inf")
@@ -278,9 +287,9 @@ class Ner_Class(nn.Module):
                     last_x = [torch.cat(last_x + [torch.zeros(1 , x_buffer[0].shape[1] - last_x[0].shape[1]  ) ] , dim = 1)]
                     x = x_buffer + last_x #torch.cat( x_buffer + last_x , dim= 2) 
 
-                    y_buffer = [ y[0][i*self.num_Classes  : (i+1)*self.num_Classes].view(1,-1)  for i in range(0, splits )]
-                    last_y = [y[0][(i+1)*self.num_Classes : ].view(1,-1)]
-                    last_y = [torch.cat(last_y + [torch.zeros(1, y_buffer[0].shape[1] - last_y[0].shape[1]  ) ] , dim = 1)]
+                    y_buffer = [ y[0][i *self.num_Classes  : (i+1) * self.num_Classes ].view(1,-1)  for i in range(0, splits )]
+                    last_y = [y[0][(i+1)*self.num_Classes  : ].view(1,-1)]
+                    last_y = [torch.cat( last_y + [torch.zeros( 1 , y_buffer[0].shape[1] - last_y[0].shape[1]  ) ] , dim = 1)]
                     y = y_buffer + last_y #torch.cat( y_buffer + last_y , dim = 2 )
 
                     for i,j in zip(x,y):
