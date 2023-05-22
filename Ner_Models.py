@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 # import matplotlib.pyplot as plt
 import random as rd
 from torch.autograd import Variable
@@ -139,6 +140,8 @@ class Ner_Class_And_Reg(nn.Module):
         enc = self.encoder(x , mask = Enc_mask ,scale = Enc_scale )
         out_class, out_pos = self.decoder(enc , enc , max_lengh = max_lengh )
         return out_class, out_pos
+
+
 #Este modelo consiste em um grupo de regressores/(classificadores Bin) Sigmóide  :
 
 class Ner_Class_Decoder(nn.Module):
@@ -227,9 +230,25 @@ class Ner_Class(nn.Module):
     def __init__(self,model_dim ,heads_Enc , heads_Dec ,num_Enc_layers ,num_Dec_layers  , num_Classes  ):
         super(Ner_Class ,self).__init__()
         self.model_dim = model_dim
+        self.num_classes = num_Classes 
         # self.Embedding = Embedding
         self.encoder = encoder(model_dim , heads_Enc , num_Enc_layers)
         self.decoder = Ner_Class_Decoder(model_dim , heads_Dec , num_Dec_layers , num_Classes  )
+
+    def fit_step(self , x , y , lossFunction = nn.CrossEntropyLoss()):
+
+        enc = self.encoder(x , mask = False ,scale = True )
+        print('____________DECODER ___________________\n\n\n\n')
+        out = self.decoder.forward_fit(enc , enc )
+        
+        # print("out.shape = " , out.shape ,"\nmult_oneHotEncode(self.model_dim, y ).shape = " , mult_oneHotEncode(len(self.Embedding.vocab), y ).shape )
+        # loss = lossFunction(out , mult_oneHotEncode(len(self.Embedding.vocab), y ))
+        loss = lossFunction(out , y )
+        lossValue = loss.item()
+        loss.backward()
+
+        return lossValue
+
 
     def fit(self ,batch_Input , batch_Output , maxAge , maxErro,n = 0.05 ,Betas = (0.9,.999) ,  lossFunction = nn.CrossEntropyLoss() , 
             lossGraphNumber = 1 ):
@@ -245,20 +264,41 @@ class Ner_Class(nn.Module):
             lossValue = 0
             
             for x,y in zip(batch_Input,batch_Output) :
+                
                 print("y.shape[0] = {}".format(y.shape[0]))
                 if type(y) != type(torch.tensor([1])) :
                     x = torch.from_numpy(x).float()
                     y = torch.from_numpy(y).float()
-                # div = len(y)
-                enc = self.encoder(x , mask = False ,scale = True )
-                print('____________DECODER ___________________\n\n\n\n')
-                out = self.decoder.forward_fit(enc , enc )
+
+                if x.shape[1] > self.num_classes :
+                    splits = x.shape[1]/self.num_Classes
+                    
+                    x_buffer  = [ x[0][i*self.num_Classes : (i+1)*self.num_Classes].view(1,-1 )  for i in range(0, splits )]
+                    last_x = [x[0][(i+1)*self.num_Classes :].view(1,-1 )]
+                    last_x = [torch.cat(last_x + [torch.zeros(1 , x_buffer[0].shape[1] - last_x[0].shape[1]  ) ] , dim = 1)]
+                    x = x_buffer + last_x #torch.cat( x_buffer + last_x , dim= 2) 
+
+                    y_buffer = [ y[0][i*self.num_Classes  : (i+1)*self.num_Classes].view(1,-1)  for i in range(0, splits )]
+                    last_y = [y[0][(i+1)*self.num_Classes : ].view(1,-1)]
+                    last_y = [torch.cat(last_y + [torch.zeros(1, y_buffer[0].shape[1] - last_y[0].shape[1]  ) ] , dim = 1)]
+                    y = y_buffer + last_y #torch.cat( y_buffer + last_y , dim = 2 )
+
+                    for i,j in zip(x,y):
+                        lossValue += self.fit_step(i , j , lossFunction )
+
+
+                lossValue += self.fit_step(x , y , lossFunction )
                 
-                # print("out.shape = " , out.shape ,"\nmult_oneHotEncode(self.model_dim, y ).shape = " , mult_oneHotEncode(len(self.Embedding.vocab), y ).shape )
-                # loss = lossFunction(out , mult_oneHotEncode(len(self.Embedding.vocab), y ))
-                loss = lossFunction(out , y )
-                lossValue += loss.item()
-                loss.backward()
+                # div = len(y)
+                # enc = self.encoder(x , mask = False ,scale = True )
+                # print('____________DECODER ___________________\n\n\n\n')
+                # out = self.decoder.forward_fit(enc , enc )
+                
+                # # print("out.shape = " , out.shape ,"\nmult_oneHotEncode(self.model_dim, y ).shape = " , mult_oneHotEncode(len(self.Embedding.vocab), y ).shape )
+                # # loss = lossFunction(out , mult_oneHotEncode(len(self.Embedding.vocab), y ))
+                # loss = lossFunction(out , y )
+                # lossValue += loss.item()
+                # loss.backward()
                 self.optimizer.step()
                 self.optimizer.zero_grad()
             Age += 1
@@ -285,6 +325,17 @@ class Ner_Class_Handler(nn.Module):
         self.Ner = Ner_Class(model_dim ,heads_Enc , heads_Dec ,num_Enc_layers ,num_Dec_layers  , num_Classes)
         self.num_Classes = num_Classes
         self.model_dim = model_dim
+
+    def fit(self ,batch_Input , batch_Output , maxAge , maxErro,n = 0.05 ,Betas = (0.9,.999) ,  lossFunction = nn.CrossEntropyLoss() , 
+            lossGraphNumber = 1):
+        # for x,y in zip(batch_Input , batch_Output):
+        # if x.shape[0]> self.num_Classes :
+        #     for i in range(0 , )
+        # self.Ner.fit(batch_Input , batch_Output , maxAge , maxErro,n ,Betas  ,  lossFunction , 
+        #     lossGraphNumber)
+        # return
+        self.Ner.fit(batch_Input , batch_Output , maxAge , maxErro,n  ,Betas  ,  lossFunction  , 
+            lossGraphNumber)
 
     def forward(self , x ,Enc_mask = False ,Enc_scale = True , masked_out = True ) :
 
