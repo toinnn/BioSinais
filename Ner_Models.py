@@ -27,7 +27,12 @@ class Ner_Class_And_Reg_Decoder(nn.Module):
         self.linear_Out_reg = nn.Linear(model_dim ,  2)
         self.out_sig = nn.Sigmoid()
 
-
+    def weights(self)->list:
+        weights = [self.linear_Out_reg] + [self.linear_Out_classes]
+        for i in self.layers :
+            weights += i.weights()
+        return weights
+    
     def forward_fit(self ,Enc_values , Enc_keys , max_lengh  ) :
         sequence = self.BOS
         soft_Out = [] # nn.ModuleList([])
@@ -91,6 +96,12 @@ class Ner_Class_And_Reg(nn.Module):
         # self.Embedding = Embedding
         self.encoder = encoder(model_dim , heads_Enc , num_Enc_layers)
         self.decoder = Ner_Class_And_Reg_Decoder(model_dim , heads_Dec , num_Dec_layers , num_Classes  )
+
+    def sparsefy(self , amount_ = 0.2)->None:
+        """Pruning the network """
+        parameters = self.encoder.weights() + self.decoder.weights()
+        parameters = [ (i , "weight") for i in parameters ]
+        prune.global_unstructured( parameters , pruning_method=prune.L1Unstructured, amount = amount_)
 
     def fit(self ,batch_Input , batch_Output , maxAge , maxErro,n = 0.05 ,Betas = (0.9,.999) ,
             lossFunction_Clas = nn.CrossEntropyLoss() , lossFunction_Reg = nn.MSELoss() ,
@@ -166,6 +177,12 @@ class Ner_Class_Decoder(nn.Module):
         
         self.out_sig = nn.Sigmoid()
 
+    def weights(self)->list:
+        weights = [self.linear_Out] 
+        for i in self.layers :
+            weights += i.weights()
+        return weights
+    
     def forward_fit(self ,Enc_values , Enc_keys ) :#, max_lengh  ) :
         sequence = self.BOS
         # soft_Out = [] # nn.ModuleList([])
@@ -244,6 +261,12 @@ class Ner_Class(nn.Module):
         self.encoder = encoder(model_dim , heads_Enc , num_Enc_layers)
         self.decoder = Ner_Class_Decoder(model_dim , heads_Dec , num_Dec_layers , num_Classes  )
 
+    def sparsefy(self , amount_ = 0.2)->None:
+        """Pruning the network """
+        parameters = self.encoder.weights() + self.decoder.weights()
+        parameters = [ (i , "weight") for i in parameters ]
+        prune.global_unstructured( parameters , pruning_method=prune.L1Unstructured, amount = amount_)
+    
     def fit_step(self , x , y , lossFunction = nn.CrossEntropyLoss()):
 
         enc = self.encoder(x , mask = False ,scale = True )
@@ -335,6 +358,10 @@ class Ner_Class_Handler(nn.Module):
         self.num_Classes = num_Classes
         self.model_dim = model_dim
 
+    def sparsefy(self , amount__ = 0.2)->None:
+        """Pruning the network """
+        self.Ner.sparsefy(amount_= amount__) 
+        
     def fit(self ,batch_Input , batch_Output , maxAge , maxErro,n = 0.05 ,Betas = (0.9,.999) ,  lossFunction = nn.CrossEntropyLoss() , 
             lossGraphNumber = 1):
         # for x,y in zip(batch_Input , batch_Output):
