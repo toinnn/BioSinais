@@ -103,7 +103,7 @@ class Ner_Class_And_Reg(nn.Module):
         parameters = [ (i , "weight") for i in parameters ]
         prune.global_unstructured( parameters , pruning_method=prune.L1Unstructured, amount = amount_)
 
-    def fit(self ,batch_Input , batch_Output , maxAge , maxErro,n = 0.05 ,Betas = (0.9,.999) ,
+    def fit(self ,batch_Input , batch_Output , maxAge , maxErro,n = 0.05 , Betas = (0.9,.999) ,
             lossFunction_Clas = nn.CrossEntropyLoss() , lossFunction_Reg = nn.MSELoss() ,
             lossGraphNumber = 1 ):
         self.optimizer = torch.optim.Adam(self.parameters(), n ,Betas)
@@ -119,13 +119,13 @@ class Ner_Class_And_Reg(nn.Module):
             
             for x,y in zip(batch_Input,batch_Output) :
                 print("y.shape[0] = {}".format(y.shape[0]))
-                if type(y[0]) != type(torch.tensor([1])) :
+                if type(y[0][0]) != type(torch.tensor([1])) :
                     x = torch.from_numpy(x).float()
                     y = (torch.from_numpy(y[0]).float() , torch.from_numpy(y[1]).float())
                 # div = len(y)
                 enc = self.encoder(x , mask = False ,scale = True )
                 print('____________DECODER ___________________\n\n\n\n')
-                out_clas , out_reg = self.decoder.forward_fit(enc , enc , max_lengh = y[0].shape[0])
+                out_clas , out_reg = self.decoder.forward_fit(enc , enc , max_lengh = y[0][0].shape[0] + y[1][0].shape[0])
                 
                 
                 
